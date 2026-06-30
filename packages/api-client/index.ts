@@ -3,7 +3,7 @@
  *
  * docs/03-yazilim-mimarisi.md §2.4 (HIBRIT model) + §6 (API tablosu).
  * ALTIN KURAL: Yazma + para + durum gecisi + is kurali HER ZAMAN bu client uzerinden
- * FastAPI'ye gider. Mobil app money.*/audit.* veya dogrudan durum yazmasi YAPMAZ.
+ * FastAPI'ye gider. Mobil app money/audit semalarina veya dogrudan durum yazmasi YAPMAZ.
  *
  * OpenAPI codegen yer tutucu: backend OpenAPI semasi
  * `packages/types/src/generated/openapi.ts`'e dokuldukten sonra request/response
@@ -17,6 +17,7 @@ import type {
   EvidenceUploadUrlRequest,
   EvidenceUploadUrlResponse,
   Order,
+  Profile,
   UUID,
 } from "@washapp/types";
 
@@ -86,6 +87,20 @@ export class WashAppApiClient {
       throw new ApiRequestError(res.status, err);
     }
     return data as T;
+  }
+
+  // -------------------------------------------------------------------------
+  // Kimlik (docs/03 §7.1 — JWT'den tembel profil saglama)
+  // -------------------------------------------------------------------------
+
+  /** GET /me — dogrulanmis kullanicinin profili (yoksa JWT'den olusur). */
+  me(): Promise<Profile> {
+    return this.request("/me");
+  }
+
+  /** PATCH /me — ad/telefon/KVKK onayi guncelle. */
+  updateMe(body: { ad_soyad?: string; telefon?: string; kvkk_onay?: boolean }): Promise<Profile> {
+    return this.request("/me", { method: "PATCH", body });
   }
 
   // -------------------------------------------------------------------------
