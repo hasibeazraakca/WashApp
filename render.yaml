@@ -32,9 +32,8 @@ services:
     startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers"
     healthCheckPath: /healthz
     autoDeploy: true
-    # Migration api'den ÖNCE koşar (03-yazilim §8.3 migration disiplini).
-    # supabase CLI image'de varsa: db push; yoksa CI job migrationu uygular.
-    preDeployCommand: "python -m app.cli migrate"
+    # NOT: Migration'lar Supabase'e AYRI uygulanır (supabase db push veya SQL Editor).
+    # app.cli migrate komutu F1'de eklenince preDeployCommand geri açılacak.
     envVars:
       - key: PYTHON_VERSION
         value: "3.12.4"
@@ -61,7 +60,7 @@ services:
     rootDir: backend
     branch: main
     buildCommand: "pip install --upgrade pip && pip install -r requirements.txt"
-    startCommand: "python -m app.workers.scheduler"
+    startCommand: "python -m app.worker"
     autoDeploy: true
     envVars:
       - key: PYTHON_VERSION
