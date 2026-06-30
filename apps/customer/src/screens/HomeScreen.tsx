@@ -1,24 +1,20 @@
-/** Ana ekran — profil/KVKK durumu + "Yeni Sipariş" + siparişlerim listesi. */
+/** Ana ekran — selamlama + KVKK + "3 Kalkan" + birincil CTA + siparis listesi. */
 import React, { useCallback, useState } from "react";
-import {
-  Alert,
-  FlatList,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Alert, FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, type NavigationProp } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Order, Profile } from "@washapp/types";
 import { api } from "../lib/api";
 import { listMyOrders } from "../lib/queries";
 import { useAuth } from "../state/auth";
-import { Button, Card, COLORS, StatusBadge } from "../ui/theme";
+import { Button, Card, COLORS, Icon, IconChip, RADIUS, SPACING, StatusBadge, TrustStrip, TYPE } from "../ui/theme";
 import type { CustomerStackParamList } from "../navigation/types";
+
+const PAKET_AD: Record<string, string> = { dis_hizli: "Dış Hızlı", standart: "Standart", premium: "Premium Detay" };
 
 export function HomeScreen({ navigation }: { navigation: NavigationProp<CustomerStackParamList> }) {
   const { signOut } = useAuth();
+  const insets = useSafeAreaInsets();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
@@ -30,96 +26,109 @@ export function HomeScreen({ navigation }: { navigation: NavigationProp<Customer
       setProfile(me);
       setOrders(list);
     } catch (e) {
-      Alert.alert("Hata", e instanceof Error ? e.message : "Yüklenemedi");
+      Alert.alert("Bağlantı hatası", e instanceof Error ? e.message : "Yüklenemedi");
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      void load();
-    }, [load]),
-  );
+  useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   async function onKvkk() {
     try {
-      const me = await api.updateMe({ kvkk_onay: true });
-      setProfile(me);
-      Alert.alert("Teşekkürler", "KVKK aydınlatma onayı alındı. Artık sipariş verebilirsiniz.");
+      setProfile(await api.updateMe({ kvkk_onay: true }));
+      Alert.alert("Teşekkürler", "Onay alındı — artık sipariş verebilirsiniz.");
     } catch (e) {
       Alert.alert("Hata", e instanceof Error ? e.message : "İşlem başarısız");
     }
   }
 
   const kvkkOk = !!profile?.kvkk_onay_ts;
+  const initial = (profile?.ad_soyad ?? "?").trim().charAt(0).toUpperCase();
 
   return (
-    <View style={st.wrap}>
-      <View style={st.header}>
+    <FlatList
+      style={{ backgroundColor: COLORS.bg }}
+      contentContainerStyle={{ padding: SPACING.lg, paddingTop: insets.top + 8, paddingBottom: insets.bottom + 24 }}
+      data={orders}
+      keyExtractor={(o) => o.id}
+      refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={COLORS.brand} />}
+      ListHeaderComponent={
         <View>
-          <Text style={st.hi}>Merhaba{profile ? `, ${profile.ad_soyad}` : ""}</Text>
-          <Text style={st.role}>{profile?.email}</Text>
-        </View>
-        <Pressable onPress={signOut}>
-          <Text style={st.signout}>Çıkış</Text>
-        </Pressable>
-      </View>
+          <View style={st.header}>
+            <View style={{ flex: 1 }}>
+              <Text style={TYPE.label}>Hoş geldiniz</Text>
+              <Text style={TYPE.h1} numberOfLines={1}>{profile?.ad_soyad ?? "—"}</Text>
+            </View>
+            <View style={st.avatar}><Text style={st.avatarText}>{initial}</Text></View>
+            <Icon name="log-out" size={20} color={COLORS.muted} style={{ padding: 8 }} onPress={signOut} />
+          </View>
 
-      {!kvkkOk && profile && (
-        <Card style={{ borderColor: COLORS.warn }}>
-          <Text style={st.cardTitle}>KVKK onayı gerekli</Text>
-          <Text style={st.cardText}>
-            Sipariş verebilmek için aydınlatma metnini onaylayın (verileriniz Frankfurt/AB'de işlenir).
-          </Text>
-          <Button title="Onaylıyorum" onPress={onKvkk} variant="ghost" style={{ marginTop: 10 }} />
+          <View style={{ marginVertical: SPACING.lg }}><TrustStrip /></View>
+
+          {!kvkkOk && profile && (
+            <Card style={{ borderColor: COLORS.warnSoft, backgroundColor: COLORS.warnSoft }}>
+              <View style={st.kvkkRow}>
+                <IconChip name="file-text" tone="warn" />
+                <View style={{ flex: 1 }}>
+                  <Text style={TYPE.h2}>KVKK onayı gerekli</Text>
+                  <Text style={[TYPE.body, { fontSize: 13, marginTop: 2 }]}>Verileriniz Frankfurt/AB'de işlenir. Onaylayın, sipariş verin.</Text>
+                </View>
+              </View>
+              <Button title="Aydınlatma metnini onaylıyorum" variant="secondary" onPress={onKvkk} style={{ marginTop: 12 }} />
+            </Card>
+          )}
+
+          <Card style={st.heroCard}>
+            <View style={st.heroRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={st.heroTitle}>Aracını yıkat</Text>
+                <Text style={st.heroSub}>Kapına gelsin · 30-45 dk · kanıtlı</Text>
+              </View>
+              <IconChip name="droplet" tone="brand" />
+            </View>
+            <Button title="Yeni Sipariş Ver" icon="plus" onPress={() => navigation.navigate("NewOrder")} disabled={!kvkkOk} style={{ marginTop: 14 }} />
+          </Card>
+
+          <Text style={[TYPE.h2, { marginTop: SPACING.xl, marginBottom: SPACING.md }]}>Siparişlerim</Text>
+        </View>
+      }
+      ListEmptyComponent={
+        <View style={st.empty}>
+          <View style={st.emptyIcon}><Icon name="inbox" size={28} color={COLORS.faint} /></View>
+          <Text style={st.emptyTitle}>Henüz siparişiniz yok</Text>
+          <Text style={st.emptyText}>"Yeni Sipariş Ver" ile ilk yıkamanızı başlatın.</Text>
+        </View>
+      }
+      renderItem={({ item }) => (
+        <Card onPress={() => navigation.navigate("OrderTracking", { orderId: item.id })} style={{ marginBottom: SPACING.md }}>
+          <View style={st.orderRow}>
+            <IconChip name="truck" tone="brand" />
+            <View style={{ flex: 1 }}>
+              <Text style={TYPE.h2}>{PAKET_AD[item.paket] ?? item.paket}</Text>
+              <Text style={TYPE.caption}>{new Date(item.created_at).toLocaleString("tr-TR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })} · #{item.id.slice(0, 6)}</Text>
+            </View>
+            <Icon name="chevron-right" size={20} color={COLORS.faint} />
+          </View>
+          <View style={{ marginTop: 12 }}><StatusBadge status={item.status} /></View>
         </Card>
       )}
-
-      <Button
-        title="+ Yeni Sipariş"
-        onPress={() => navigation.navigate("NewOrder")}
-        disabled={!kvkkOk}
-        style={{ marginBottom: 16 }}
-      />
-
-      <Text style={st.section}>Siparişlerim</Text>
-      <FlatList
-        data={orders}
-        keyExtractor={(o) => o.id}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
-        ListEmptyComponent={
-          <Text style={st.empty}>Henüz siparişiniz yok. "Yeni Sipariş" ile başlayın.</Text>
-        }
-        renderItem={({ item }) => (
-          <Pressable onPress={() => navigation.navigate("OrderTracking", { orderId: item.id })}>
-            <Card>
-              <View style={st.row}>
-                <Text style={st.paket}>{item.paket}</Text>
-                <StatusBadge status={item.status} />
-              </View>
-              <Text style={st.meta}>
-                {new Date(item.created_at).toLocaleString("tr-TR")} · #{item.id.slice(0, 8)}
-              </Text>
-            </Card>
-          </Pressable>
-        )}
-      />
-    </View>
+    />
   );
 }
 
 const st = StyleSheet.create({
-  wrap: { flex: 1, padding: 16, backgroundColor: COLORS.bg },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
-  hi: { fontSize: 22, fontWeight: "800", color: COLORS.text },
-  role: { fontSize: 13, color: COLORS.muted },
-  signout: { color: COLORS.danger, fontWeight: "600" },
-  cardTitle: { fontSize: 15, fontWeight: "700", color: COLORS.text },
-  cardText: { fontSize: 13, color: COLORS.muted, marginTop: 4 },
-  section: { fontSize: 16, fontWeight: "700", color: COLORS.text, marginBottom: 8 },
-  empty: { color: COLORS.muted, textAlign: "center", marginTop: 24 },
-  row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  paket: { fontSize: 16, fontWeight: "700", color: COLORS.text, textTransform: "capitalize" },
-  meta: { fontSize: 12, color: COLORS.muted, marginTop: 6 },
+  header: { flexDirection: "row", alignItems: "center", gap: 10 },
+  avatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: COLORS.brand, alignItems: "center", justifyContent: "center" },
+  avatarText: { color: COLORS.onBrand, fontSize: 17, fontWeight: "800" },
+  kvkkRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  heroCard: { backgroundColor: COLORS.ink, borderColor: COLORS.ink },
+  heroRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  heroTitle: { fontSize: 19, fontWeight: "800", color: "#fff" },
+  heroSub: { fontSize: 13, color: "#CBD5E1", marginTop: 3 },
+  orderRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  empty: { alignItems: "center", paddingVertical: 36 },
+  emptyIcon: { width: 64, height: 64, borderRadius: 32, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, alignItems: "center", justifyContent: "center", marginBottom: 14 },
+  emptyTitle: { ...TYPE.h2 },
+  emptyText: { ...TYPE.body, fontSize: 13, color: COLORS.muted, textAlign: "center", marginTop: 4 },
 });

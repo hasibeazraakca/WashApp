@@ -1,15 +1,27 @@
-/** Giris ekrani — Supabase Auth (email/parola). Demo icin seed kullanici on-dolu. */
+/** Giris — premium hero + "3 Kalkan" guven seridi + ikonlu input. Seed hesap on-dolu. */
 import React, { useState } from "react";
-import { KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from "react-native";
-import { Button, COLORS } from "../ui/theme";
+import {
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Button, COLORS, Icon, RADIUS, SPACING, TrustStrip, TYPE } from "../ui/theme";
 import { useAuth } from "../state/auth";
 
 export function LoginScreen() {
   const { signIn } = useAuth();
+  const insets = useSafeAreaInsets();
   const [email, setEmail] = useState("washapp.musteri@example.com");
   const [password, setPassword] = useState("Test1234!");
+  const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [focus, setFocus] = useState<string | null>(null);
 
   async function onLogin() {
     setErr(null);
@@ -23,51 +35,83 @@ export function LoginScreen() {
     }
   }
 
-  return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      style={st.wrap}
-    >
-      <Text style={st.logo}>WashApp</Text>
-      <Text style={st.sub}>Kapıda mobil oto yıkama</Text>
+  const field = (active: boolean) => [st.input, active && { borderColor: COLORS.brand, backgroundColor: COLORS.surface }];
 
-      <View style={st.form}>
-        <Text style={st.label}>E-posta</Text>
-        <TextInput
-          style={st.input}
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          placeholder="ornek@mail.com"
-        />
-        <Text style={st.label}>Parola</Text>
-        <TextInput style={st.input} value={password} onChangeText={setPassword} secureTextEntry />
-        {err && <Text style={st.err}>{err}</Text>}
-        <Button title="Giriş Yap" onPress={onLogin} loading={loading} style={{ marginTop: 8 }} />
-        <Text style={st.hint}>
-          Demo: seed müşteri hesabı ön-dolu. Backend canlı (Render + Supabase Frankfurt).
-        </Text>
-      </View>
+  return (
+    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: COLORS.bg }}>
+      <ScrollView contentContainerStyle={[st.wrap, { paddingTop: insets.top + 48, paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled">
+        <View style={st.brandRow}>
+          <View style={st.logoBox}>
+            <Icon name="droplet" size={26} color={COLORS.onBrand} />
+          </View>
+          <Text style={st.logo}>WashApp</Text>
+        </View>
+        <Text style={st.tag}>Kapıda mobil oto yıkama — kanıtlı, güvenli, garantili.</Text>
+
+        <View style={{ marginTop: SPACING.xl, marginBottom: SPACING.lg }}>
+          <TrustStrip />
+        </View>
+
+        <View style={st.form}>
+          <Text style={TYPE.label}>E-posta</Text>
+          <View style={field(focus === "email")}>
+            <Icon name="mail" size={18} color={COLORS.faint} />
+            <TextInput
+              style={st.inputText}
+              value={email}
+              onChangeText={setEmail}
+              onFocus={() => setFocus("email")}
+              onBlur={() => setFocus(null)}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              autoComplete="email"
+              placeholder="ornek@mail.com"
+              placeholderTextColor={COLORS.faint}
+            />
+          </View>
+
+          <Text style={[TYPE.label, { marginTop: SPACING.md }]}>Parola</Text>
+          <View style={field(focus === "pw")}>
+            <Icon name="lock" size={18} color={COLORS.faint} />
+            <TextInput
+              style={st.inputText}
+              value={password}
+              onChangeText={setPassword}
+              onFocus={() => setFocus("pw")}
+              onBlur={() => setFocus(null)}
+              secureTextEntry={!show}
+              autoComplete="password"
+              placeholder="••••••••"
+              placeholderTextColor={COLORS.faint}
+            />
+            <Icon name={show ? "eye-off" : "eye"} size={18} color={COLORS.muted} style={{ padding: 4 }} onPress={() => setShow((s) => !s)} />
+          </View>
+
+          {err && (
+            <View style={st.errBox}>
+              <Icon name="alert-circle" size={15} color={COLORS.danger} />
+              <Text style={st.errText}>{err}</Text>
+            </View>
+          )}
+
+          <Button title="Giriş Yap" icon="arrow-right" onPress={onLogin} loading={loading} style={{ marginTop: SPACING.lg }} />
+          <Text style={st.hint}>Demo hesabı ön-dolu · Backend canlı (Frankfurt/AB · KVKK)</Text>
+        </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const st = StyleSheet.create({
-  wrap: { flex: 1, justifyContent: "center", padding: 24, backgroundColor: COLORS.bg },
-  logo: { fontSize: 40, fontWeight: "800", color: COLORS.primary, textAlign: "center" },
-  sub: { fontSize: 15, color: COLORS.muted, textAlign: "center", marginTop: 4, marginBottom: 28 },
-  form: { gap: 6 },
-  label: { fontSize: 13, fontWeight: "600", color: COLORS.text, marginTop: 8 },
-  input: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    fontSize: 16,
-    backgroundColor: "#fff",
-  },
-  err: { color: COLORS.danger, fontSize: 13, marginTop: 6 },
-  hint: { fontSize: 12, color: COLORS.muted, textAlign: "center", marginTop: 16 },
+  wrap: { paddingHorizontal: SPACING.xl, flexGrow: 1 },
+  brandRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  logoBox: { width: 52, height: 52, borderRadius: 15, backgroundColor: COLORS.brand, alignItems: "center", justifyContent: "center" },
+  logo: { ...TYPE.display, fontSize: 34 },
+  tag: { ...TYPE.body, color: COLORS.muted, marginTop: 12 },
+  form: { marginTop: SPACING.sm },
+  input: { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderColor: COLORS.border, borderRadius: RADIUS.md, paddingHorizontal: 14, backgroundColor: COLORS.surfaceAlt, marginTop: 6, minHeight: 52 },
+  inputText: { flex: 1, fontSize: 16, color: COLORS.ink, paddingVertical: 14 },
+  errBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: COLORS.dangerSoft, borderRadius: RADIUS.sm, padding: 10, marginTop: 12 },
+  errText: { flex: 1, color: COLORS.danger, fontSize: 13, fontWeight: "500" },
+  hint: { ...TYPE.caption, textAlign: "center", marginTop: 16 },
 });

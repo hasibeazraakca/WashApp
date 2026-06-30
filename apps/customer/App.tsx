@@ -29,7 +29,7 @@ function Routes() {
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: "center", backgroundColor: COLORS.bg }}>
-        <ActivityIndicator color={COLORS.primary} />
+        <ActivityIndicator color={COLORS.brand} />
       </View>
     );
   }
@@ -40,18 +40,19 @@ function Routes() {
     <Stack.Navigator
       initialRouteName="Home"
       screenOptions={{
-        headerStyle: { backgroundColor: COLORS.primary },
-        headerTintColor: "#fff",
-        headerTitleStyle: { fontWeight: "800" },
+        headerStyle: { backgroundColor: COLORS.surface },
+        headerTintColor: COLORS.brand,
+        headerTitleStyle: { fontWeight: "800", color: COLORS.ink },
+        headerShadowVisible: false,
         contentStyle: { backgroundColor: COLORS.bg },
       }}
     >
-      <Stack.Screen name="Home" component={HomeScreen} options={{ title: "WashApp" }} />
-      <Stack.Screen name="NewOrder" component={NewOrderScreen} options={{ title: "Yeni Sipariş" }} />
+      <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="NewOrder" component={NewOrderScreen} options={{ title: "Yeni Sipariş", headerBackTitle: "Geri" }} />
       <Stack.Screen
         name="OrderTracking"
         component={OrderTrackingScreen}
-        options={{ title: "Sipariş Takibi" }}
+        options={{ title: "Sipariş Takibi", headerBackTitle: "Geri" }}
       />
     </Stack.Navigator>
   );
