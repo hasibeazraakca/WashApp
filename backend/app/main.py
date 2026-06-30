@@ -20,6 +20,7 @@ from app.routers import (
     dispatch,
     disputes,
     evidence,
+    me,
     orders,
     payments,
     providers,
@@ -78,6 +79,7 @@ app.add_middleware(
 # --- v1 router'lari mount ---
 API_V1 = "/api/v1"
 for module in (
+    me,
     orders,
     evidence,
     payments,

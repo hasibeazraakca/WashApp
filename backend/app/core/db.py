@@ -34,7 +34,7 @@ async def init_pool() -> asyncpg.Pool | None:
         return None
     try:
         _pool = await asyncpg.create_pool(
-            dsn=settings.database_url,
+            dsn=settings.asyncpg_dsn,
             min_size=settings.db_pool_min_size,
             max_size=settings.db_pool_max_size,
             # Supavisor transaction pooler uyumu: prepared statement cache KAPALI.

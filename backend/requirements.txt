@@ -18,7 +18,8 @@ pyjwt[crypto]==2.10.1            # RS256 JWKS dogrulama icin crypto extra'si sar
 cryptography==44.0.0
 
 # --- HTTP istemcisi (JWKS cek, Iyzico/PSP cagrilari) ---
-httpx==0.28.1
+# NOT: supabase 2.10.0 httpx<0.28 ister; bu yuzden 0.27.x pinli (cakisma cozumu).
+httpx==0.27.2
 
 # --- Supabase (Storage signed URL + Auth admin, service_role) ---
 supabase==2.10.0

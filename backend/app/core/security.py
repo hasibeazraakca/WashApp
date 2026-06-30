@@ -67,15 +67,50 @@ def _get_jwk_client() -> PyJWKClient | None:
     return _jwk_client
 
 
+def _decode_hs256(token: str) -> dict[str, Any]:
+    """HS256 fallback — Supabase 'legacy' paylasilan JWT secret ile dogrula.
+
+    Yeni projeler asimetrik (RS256/JWKS) kullanir; ama cogu Supabase projesi hala
+    HS256 JWT secret tasir (service_role/anon key'leri de bu secret ile imzali).
+    Bu yol JWKS yapilandirilmamissa devreye girer ve yerel testte token uretmeyi
+    (ayni secret ile) mumkun kilar.
+    """
+    return jwt.decode(
+        token,
+        settings.supabase_jwt_secret,
+        algorithms=["HS256"],
+        audience="authenticated",
+        issuer=settings.supabase_jwt_issuer or None,
+        options={"verify_aud": True, "verify_iss": bool(settings.supabase_jwt_issuer)},
+    )
+
+
 def _decode_jwt(token: str) -> dict[str, Any]:
-    """JWT imza + exp + iss dogrula, claim sozlugu dondur."""
+    """JWT imza + exp + iss dogrula, claim sozlugu dondur.
+
+    Oncelik JWKS (RS256/ES256); JWKS yoksa SUPABASE_JWT_SECRET ile HS256 fallback.
+    Ikisi de yoksa 503 (auth yapilandirilmadi).
+    """
     client = _get_jwk_client()
     if client is None:
-        # TODO(Faz-0): HS256 fallback (SUPABASE_JWT_SECRET) — eski projeler icin.
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={"error": "auth_yapilandirilmadi", "detay": "JWKS URL tanimsiz"},
-        )
+        if not settings.supabase_jwt_secret:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={"error": "auth_yapilandirilmadi", "detay": "JWKS URL ve JWT secret tanimsiz"},
+            )
+        try:
+            return _decode_hs256(token)
+        except jwt.ExpiredSignatureError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={"error": "token_suresi_doldu", "detay": "Oturum suresi doldu"},
+            ) from exc
+        except jwt.InvalidTokenError as exc:
+            logger.warning("HS256 JWT dogrulama basarisiz: %s", exc)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={"error": "gecersiz_token", "detay": "Kimlik dogrulanamadi"},
+            ) from exc
     try:
         signing_key = client.get_signing_key_from_jwt(token)
         return jwt.decode(

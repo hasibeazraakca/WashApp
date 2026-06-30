@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     supabase_service_role_key: str = ""
     supabase_jwt_issuer: str = ""
     supabase_jwks_url: str = ""
+    supabase_jwt_secret: str = ""  # HS256 fallback (legacy paylasilan secret)
 
     # --- Postgres: Supavisor TRANSACTION pooler (port 6543 ZORUNLU) ---
     # 03-yazilim-mimarisi.md §2.5: pool_size kucuk, statement_cache_size=0.
@@ -76,6 +77,22 @@ class Settings(BaseSettings):
                 stacklevel=2,
             )
         return v
+
+    @property
+    def asyncpg_dsn(self) -> str:
+        """DATABASE_URL'i asyncpg'nin kabul ettigi sade forma getir.
+
+        - 'postgresql+asyncpg://' (SQLAlchemy) -> 'postgresql://'
+        - query string (ornek ?pgbouncer=true / ?statement_cache_size=0) atilir;
+          havuz secenekleri kodda (db.py) zaten ayarlanir, asyncpg bilinmeyen query
+          parametrelerinde patlayabilir.
+        """
+        dsn = self.database_url
+        for prefix in ("postgresql+asyncpg://", "postgres+asyncpg://", "postgres://"):
+            if dsn.startswith(prefix):
+                dsn = "postgresql://" + dsn[len(prefix):]
+                break
+        return dsn.split("?", 1)[0]
 
     @property
     def cors_origin_list(self) -> list[str]:

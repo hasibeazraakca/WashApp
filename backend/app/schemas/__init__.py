@@ -85,6 +85,29 @@ class ErrorResponse(CamelModel):
 
 
 # ---------------------------------------------------------------------------
+# Me / Profil
+# ---------------------------------------------------------------------------
+class MeResponse(CamelModel):
+    """GET /me — dogrulanmis kullanicinin profili (tembel saglanir)."""
+
+    id: UUID
+    role: str
+    ad_soyad: str
+    telefon: str | None = None
+    email: str | None = None
+    kvkk_onay_ts: datetime | None = None
+    created_at: datetime | None = None
+
+
+class ProfileUpdateRequest(CamelModel):
+    """PATCH /me — kullanici kendi profilini gunceller (ad/telefon/KVKK onay)."""
+
+    ad_soyad: str | None = None
+    telefon: str | None = Field(default=None, examples=["+905321234567"])
+    kvkk_onay: bool | None = None  # true -> kvkk_onay_ts = now()
+
+
+# ---------------------------------------------------------------------------
 # Order
 # ---------------------------------------------------------------------------
 class OrderCreate(CamelModel):
@@ -137,12 +160,15 @@ class Order(CamelModel):
 
 
 class OrderCreateResponse(CamelModel):
-    """201 — siparis olusturuldu (§6.2)."""
+    """201 — siparis olusturuldu (§6.2).
+
+    escrow F2'de doldurulur (Iyzico provizyon); F1 parasiz akista None.
+    """
 
     order_id: UUID
     status: OrderStatus
     fiyat: FiyatSnapshot
-    escrow: EscrowOzet
+    escrow: EscrowOzet | None = None
     realtime_channel: str
 
 
@@ -152,11 +178,14 @@ class StatusTransitionResponse(CamelModel):
 
 
 class ConfirmResponse(CamelModel):
-    """Musteri onayi / 24s otomatik onay -> capture (§6.3)."""
+    """Musteri onayi / 24s otomatik onay -> capture (§6.3).
+
+    escrow + ledger F2'de doldurulur; F1 parasiz onayda escrow=None, ledger=[].
+    """
 
     status: OrderStatus
     confirm_type: str  # 'customer' | 'auto_24h'
-    escrow: EscrowOzet
+    escrow: EscrowOzet | None = None
     ledger: list["LedgerLine"] = Field(default_factory=list)
 
 
@@ -181,12 +210,17 @@ class EvidenceUploadResponse(CamelModel):
 
 
 class EvidenceConfirmRequest(CamelModel):
-    """POST /evidence/confirm — sunucu re-hash dogrulamasi (§3.2 adim 7-8)."""
+    """POST /evidence/confirm — sunucu re-hash dogrulamasi (§3.2 adim 7-8).
+
+    gps + cihaz_ts cekim aninda istemcide olusur; photo_evidence (NOT NULL) icin
+    confirm ile tasinir (yetim metadata icin ayri pending tablo gerekmesin diye)."""
 
     order_id: UUID
     evre: FotoEvre
     aci: FotoAci
     sha256: str = Field(..., min_length=64, max_length=64)
+    gps: GeoPoint
+    cihaz_ts: datetime
 
 
 class EvidenceConfirmResponse(CamelModel):

@@ -6,6 +6,7 @@ from app.routers import (
     dispatch,
     disputes,
     evidence,
+    me,
     orders,
     payments,
     providers,
@@ -14,6 +15,7 @@ from app.routers import (
 )
 
 __all__ = [
+    "me",
     "orders",
     "evidence",
     "payments",

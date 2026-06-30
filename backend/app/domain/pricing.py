@@ -16,9 +16,33 @@ from app.schemas import FiyatSnapshot
 
 _TWO = Decimal("0.01")
 
+# Paket liste fiyatlari (01-pazarlama-urun.md §4.1 — pilot, Istanbul premium).
+# Tek dogruluk kaynagi: bu degerler siparise islem aninda kopyalanir (fiyat dondurma).
+PAKET_FIYAT: dict[str, Decimal] = {
+    "dis_hizli": Decimal("280.00"),
+    "standart": Decimal("450.00"),  # varsayilan / AOV
+    "premium": Decimal("750.00"),
+}
+
+# SUV / buyuk arac eki: tum paketlere +%15 (01-pazarlama §4.1).
+SUV_EK_ORANI = Decimal("0.15")
+SUV_ARAC_TIPLERI = frozenset({"suv"})
+
 
 def _q(v: Decimal) -> Decimal:
     return v.quantize(_TWO, rounding=ROUND_HALF_UP)
+
+
+def paket_gmv(paket: str, arac_tipi: str = "sedan") -> Decimal:
+    """Paket + arac tipinden GMV (yikama bedeli) hesapla.
+
+    Bilinmeyen paket -> KeyError (cagiran 400 dondurur).
+    SUV ise +%15 ek uygulanir.
+    """
+    taban = PAKET_FIYAT[paket]
+    if arac_tipi.lower() in SUV_ARAC_TIPLERI:
+        taban = taban * (Decimal("1") + SUV_EK_ORANI)
+    return _q(taban)
 
 
 def compute_snapshot(
