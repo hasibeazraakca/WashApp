@@ -1,0 +1,27 @@
+{
+  "name": "washapp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WashApp — kapida mobil oto yikama pazaryeri (monorepo)",
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20.17.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "clean": "turbo run clean",
+    "codegen:api": "openapi-typescript http://localhost:8000/openapi.json -o packages/types/src/generated/openapi.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.0",
+    "eslint": "^8.57.0",
+    "openapi-typescript": "^7.4.0",
+    "prettier": "^3.3.3",
+    "turbo": "^2.1.0",
+    "typescript": "^5.5.4"
+  }
+}

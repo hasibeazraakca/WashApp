@@ -1,0 +1,5 @@
+# WashApp pnpm workspaces
+# Mimari: docs/03-yazilim-mimarisi.md §1.2 — tek repo, 2 app + paylasilan paketler
+packages:
+  - "apps/*"
+  - "packages/*"

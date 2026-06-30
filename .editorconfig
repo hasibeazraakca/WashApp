@@ -1,0 +1,37 @@
+# WashApp — kök EditorConfig (https://editorconfig.org)
+# Monorepo: RN/TS (apps,packages) + Python/FastAPI (backend) + SQL (supabase).
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# Python — ruff/black uyumu: 4 boşluk
+[*.py]
+indent_size = 4
+max_line_length = 100
+
+# TS/JS/JSON/YAML — 2 boşluk (yukarıdaki varsayılan)
+[*.{ts,tsx,js,jsx,mjs,cjs,json,jsonc}]
+indent_size = 2
+
+[*.{yml,yaml}]
+indent_size = 2
+
+# SQL (Supabase migrations) — 2 boşluk
+[*.sql]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false  # Markdown'da iki boşluklu satır sonu anlamlı
+
+# Makefile sekme ister
+[Makefile]
+indent_style = tab
+
+[*.{bat,cmd}]
+end_of_line = crlf

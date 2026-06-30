@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "WashApp Pro",
+    "slug": "washapp-provider",
+    "scheme": "washapppro",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": false,
+    "platforms": ["ios", "android"],
+    "ios": {
+      "bundleIdentifier": "com.washapp.provider",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Anti-fraud öncesi/sonrası kanıt fotoğrafları yalnızca canlı kamerayla çekilir.",
+        "NSLocationWhenInUseUsageDescription": "Varış geofence ve eşleştirme için konum kullanılır.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "İş sırasında canlı konum takibi için arka plan konumu kullanılır."
+      }
+    },
+    "android": {
+      "package": "com.washapp.provider",
+      "permissions": [
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION"
+      ]
+    },
+    "plugins": ["expo-dev-client"],
+    "extra": {
+      "eas": { "projectId": "TODO-eas-project-id-provider" }
+    }
+  }
+}

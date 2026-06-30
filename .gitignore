@@ -1,0 +1,100 @@
+# =============================================================================
+# WashApp .gitignore — RN (Expo prebuild) + Python/FastAPI + monorepo
+# KURAL: sırlar repoda ASLA. .env* daima ignore. Render env / Supabase secrets.
+# =============================================================================
+
+# --- Sırlar & ortam (ASLA commit'leme) ---------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p8
+*.p12
+*.keystore
+*.jks
+google-services.json
+GoogleService-Info.plist
+service-account*.json
+secrets/
+
+# --- Node / pnpm / Turborepo -------------------------------------------------
+node_modules/
+.pnpm-store/
+.pnpm-debug.log*
+.turbo/
+dist/
+build/
+out/
+coverage/
+*.tsbuildinfo
+
+# --- React Native / Expo / EAS -----------------------------------------------
+.expo/
+.expo-shared/
+web-build/
+expo-env.d.ts
+# Expo prebuild ile üretilen native projeler — düzenlenmedikçe ignore.
+# (Elle düzenlenen native kod commit'lenecekse aşağıdaki iki satırı kaldır.)
+/apps/*/ios/
+/apps/*/android/
+# Metro & RN
+.metro-health-check*
+metro.config.local.js
+
+# --- iOS / Xcode -------------------------------------------------------------
+ios/Pods/
+*.xcworkspace/xcuserdata/
+*.xcuserstate
+DerivedData/
+*.ipa
+
+# --- Android / Gradle --------------------------------------------------------
+*.apk
+*.aab
+.gradle/
+local.properties
+android/app/release/
+*.hprof
+
+# --- OpenAPI -> TS codegen (üretilmiş ara çıktı; .gen.ts commit'lenir) --------
+openapi.json
+
+# --- Python / FastAPI --------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+.python-version
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+*.sqlite3
+
+# --- Supabase (local stack) --------------------------------------------------
+supabase/.branches/
+supabase/.temp/
+supabase/.env
+**/supabase/seed.local.sql
+
+# --- IDE / OS ----------------------------------------------------------------
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.shared.json
+*.swp
+.DS_Store
+Thumbs.db
+
+# --- Loglar & geçici ---------------------------------------------------------
+*.log
+logs/
+tmp/
+.cache/

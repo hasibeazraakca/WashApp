@@ -1,0 +1,135 @@
+# =============================================================================
+# WashApp — Render.com Blueprint (Infrastructure as Code)
+# =============================================================================
+# KVKK / BLOKÖR-2: TÜM servisler region: frankfurt (eu-central-1) olmalı.
+#   - Sipariş, durum makinesi, fotoğraf kanıtı, konum, ledger → Frankfurt'ta kalır.
+#   - Render Frankfurt + Supabase Frankfurt = veri AB'de; yurt dışı (US) aktarımı YOK.
+#   - Bu region kararı PAZARLIK KONUSU DEĞİLDİR; değiştirilirse hukuki kapatma riski.
+#
+# Sırlar (service_role key, IYZICO_SECRET, DB şifresi) REPODA TUTULMAZ.
+#   - Dashboard'da "Environment Group" olarak girilir (sync: false → Render UI'dan doldurulur).
+#   - Bu dosyada yalnızca isim referansı var; değer YOK.
+#
+# Topoloji (03-yazilim-mimarisi §2.2):
+#   washapp-api    → Web Service  (REST + PSP webhook + signed URL)
+#   washapp-worker → Background Worker (6 cron, tek instance — payout çift çalışmaz)
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # washapp-api — FastAPI web service
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: washapp-api
+    runtime: python
+    region: frankfurt          # KVKK BLOKÖR-2 — AB içi, değiştirme
+    plan: starter              # pilot: starter; Yıl-2'de standard+ (autoscale)
+    rootDir: backend
+    branch: main
+    buildCommand: "pip install --upgrade pip && pip install -r requirements.txt"
+    # Uvicorn worker tek başına; Render zaten process'i yönetir.
+    # $PORT Render tarafından enjekte edilir.
+    startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers"
+    healthCheckPath: /healthz
+    autoDeploy: true
+    # Migration api'den ÖNCE koşar (03-yazilim §8.3 migration disiplini).
+    # supabase CLI image'de varsa: db push; yoksa CI job migrationu uygular.
+    preDeployCommand: "python -m app.cli migrate"
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.4"
+      - key: APP_ENV
+        value: production
+      - key: WEB_CONCURRENCY     # uvicorn/gunicorn worker sayısı
+        value: "2"
+      - key: SENTRY_ENVIRONMENT
+        value: production
+      # --- Ortak sırlar env grubundan gelir ---
+      - fromGroup: washapp-shared-secrets
+      - fromGroup: washapp-runtime-config
+
+  # ---------------------------------------------------------------------------
+  # washapp-worker — Background Worker (6 zamanlanmış görev)
+  #   APScheduler/arq; her görev SELECT ... FOR UPDATE SKIP LOCKED ile koşar.
+  #   TEK instance (numInstances yok / 1) → payout & 24s onay çift çalışmaz.
+  # ---------------------------------------------------------------------------
+  - type: worker
+    name: washapp-worker
+    runtime: python
+    region: frankfurt          # KVKK BLOKÖR-2
+    plan: starter
+    rootDir: backend
+    branch: main
+    buildCommand: "pip install --upgrade pip && pip install -r requirements.txt"
+    startCommand: "python -m app.workers.scheduler"
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.4"
+      - key: APP_ENV
+        value: production
+      - key: WORKER_ROLE         # tasks.py hangi cron'ları çalıştıracağını bilir
+        value: scheduler
+      - key: SENTRY_ENVIRONMENT
+        value: production
+      - fromGroup: washapp-shared-secrets
+      - fromGroup: washapp-runtime-config
+
+# =============================================================================
+# Environment Groups — sırlar Render Dashboard'da doldurulur (sync: false).
+#   Repo'da SADECE anahtar isimleri durur; DEĞERLER ASLA commit'lenmez.
+# =============================================================================
+envVarGroups:
+  # --- Gerçek sırlar: service_role, PSP secret, DB şifresi, HMAC ---
+  - name: washapp-shared-secrets
+    envVars:
+      # Supabase — Supavisor transaction pooler (port 6543, statement_cache_size=0)
+      # Örn: postgresql+asyncpg://postgres.<ref>:<pwd>@aws-0-eu-central-1.pooler.supabase.com:6543/postgres
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY   # money/audit erişimi — service_role kilitli
+        sync: false
+      - key: SUPABASE_JWT_SECRET         # JWT doğrulama (JWKS alternatifi)
+        sync: false
+      # Iyzico Pazaryeri / Alt Üye İşyeri (escrow; para WashApp'a ASLA girmez)
+      - key: IYZICO_API_KEY
+        sync: false
+      - key: IYZICO_SECRET_KEY
+        sync: false
+      - key: IYZICO_BASE_URL             # sandbox/prod ayrımı
+        sync: false
+      - key: IYZICO_WEBHOOK_SECRET       # HMAC imza doğrulama
+        sync: false
+      # PayTR (fallback PSP)
+      - key: PAYTR_MERCHANT_KEY
+        sync: false
+      - key: PAYTR_MERCHANT_SALT
+        sync: false
+      # İzleme & bildirim
+      - key: SENTRY_DSN
+        sync: false
+      - key: EXPO_ACCESS_TOKEN           # push (Expo Notifications)
+        sync: false
+      - key: SMS_API_KEY                 # Iletimerkezi / Netgsm
+        sync: false
+
+  # --- İş sabitleri (sır değil ama env'den; plana göre kilitli) ---
+  # Plan sabitleri 00-MASTER-PLAN §6: komisyon 0.220, fon 15.00, abonelik 790/1490, AOV 450.
+  - name: washapp-runtime-config
+    envVars:
+      - key: COMMISSION_RATE             # %22 sipariş komisyonu
+        value: "0.220"
+      - key: PROTECTION_FUND_FEE_TRY     # Hasar Tazmin Garanti Fonu — işlem başı
+        value: "15.00"
+      - key: SUBSCRIPTION_PRICE_2_TRY    # 2 yıkama abonelik
+        value: "790"
+      - key: SUBSCRIPTION_PRICE_4_TRY    # 4 yıkama abonelik
+        value: "1490"
+      - key: AOV_TRY                     # ortalama sepet (sipariş anlık görüntüsü baz)
+        value: "450"
+      - key: AUTO_CONFIRM_WINDOW_HOURS   # 24s otomatik onay penceresi
+        value: "24"
+      - key: GEOFENCE_POLYGON_REF        # Büyükdere ekseni poligon kimliği (config paketi ile eşleşir)
+        value: "maslak-levent-buyukdere-v1"

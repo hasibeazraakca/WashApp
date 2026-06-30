@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "WashApp",
+    "slug": "washapp-customer",
+    "scheme": "washapp",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": false,
+    "platforms": ["ios", "android"],
+    "ios": {
+      "bundleIdentifier": "com.washapp.customer",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Siparis konumunuzu plaza geofence icinde dogrulamak icin kullanilir."
+      }
+    },
+    "android": {
+      "package": "com.washapp.customer",
+      "permissions": ["ACCESS_FINE_LOCATION"]
+    },
+    "plugins": ["expo-dev-client"],
+    "extra": {
+      "eas": { "projectId": "TODO-eas-project-id-customer" }
+    }
+  }
+}

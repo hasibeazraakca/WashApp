@@ -1,0 +1,76 @@
+# =====================================================================
+# WashApp — Supabase CLI config (minimal)
+#
+# PROD REGION: eu-central-1 (Frankfurt) — KVKK kritik (00-MASTER BLOKOR 2).
+#   Bu config local gelistirme (supabase start) icindir; prod proje Supabase
+#   dashboard'da Frankfurt region'da acilir. CLI link: `supabase link --project-ref <ref>`.
+#
+# BAGLANTI (prod, FastAPI -> Supabase): Supavisor TRANSACTION POOLER, port 6543,
+#   statement_cache_size=0 (00-MASTER, 03-yazilim §2.5). Local'de db.port 54322.
+# =====================================================================
+
+project_id = "washapp"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["app", "geo", "public", "storage", "graphql_public"]
+# DIKKAT: "money" ve "audit" semalari API'ye ACIK EDILMEZ.
+#   Bu semalar service_role-kilitli; PostgREST uzerinden mobil app'e expose edilmez
+#   (SEC-1 / G5: money & audit mobile 0 satir). FastAPI bu semalara dogrudan
+#   Postgres (asyncpg + service_role) ile erisir, PostgREST ile degil.
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[db.pooler]
+enabled = true
+port = 54329
+# Prod'da FastAPI transaction-mode pooler (Supavisor :6543) kullanir.
+pool_mode = "transaction"
+default_pool_size = 20
+max_client_conn = 100
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+# Mobil deep-link redirect'leri (customer + provider) burada whitelist edilir.
+additional_redirect_urls = ["washapp-customer://auth-callback", "washapp-provider://auth-callback"]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+enable_confirmations = false
+
+# Telefon OTP (TR pilot ana giris yontemi) — prod'da SMS provider (Netgsm/Iletimerkezi)
+# backend uzerinden; local'de test OTP.
+[auth.sms]
+enable_signup = true
+enable_confirmations = true
+
+[storage]
+enabled = true
+# Bucket'lar 0002_storage_buckets.sql ile olusturulur (evidence/evidence-kyc/public-assets).
+file_size_limit = "20MiB"
+
+[realtime]
+enabled = true
+# Siparis durumu (postgres_changes on app.orders, RLS-filtreli) + konum broadcast (03-yazilim §5).
+
+[studio]
+enabled = true
+port = 54323
+
+[inbucket]
+enabled = true
+port = 54324
+
+[analytics]
+enabled = false

@@ -1,0 +1,178 @@
+# =============================================================================
+# WashApp — Continuous Integration
+# =============================================================================
+# 03-yazilim-mimarisi §8.3 CI/CD sözleşmesi:
+#   PR aç → lint (ruff, eslint, tsc) + pytest + supabase db diff + OpenAPI→TS drift
+#
+# NOT: Bu iskelet job'ların çoğu STUB. Monorepo (apps/*, packages/*, backend/,
+#       supabase/) iskelesi F0'da kurulunca her job gerçek komutla doldurulur.
+#       Stub job'lar "yeşil" geçer ama TODO işaretiyle ne yapacaklarını söyler.
+# =============================================================================
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Aynı ref için eski koşuları iptal et (CI dakikası tasarrufu).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Backend — ruff (lint+format) + pytest (domain saf + integration)
+  # ---------------------------------------------------------------------------
+  backend:
+    name: backend (ruff + pytest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install deps
+        run: |
+          if [ -f requirements.txt ]; then
+            pip install --upgrade pip
+            pip install -r requirements.txt
+            pip install ruff pytest
+          else
+            echo "TODO(F0): backend/requirements.txt henüz yok — stub geçiliyor."
+          fi
+
+      - name: Ruff lint
+        run: |
+          if [ -d app ]; then
+            ruff check app tests
+            ruff format --check app tests
+          else
+            echo "TODO(F0): backend/app henüz yok — ruff stub."
+          fi
+
+      - name: Pytest
+        # domain testleri saf Python; integration testcontainers-postgres (03 §2.3)
+        run: |
+          if [ -d tests ]; then
+            pytest -q
+          else
+            echo "TODO(F0): backend/tests henüz yok — pytest stub."
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Frontend — eslint + tsc (RN monorepo, apps/* + packages/*)
+  # ---------------------------------------------------------------------------
+  frontend:
+    name: frontend (eslint + tsc)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+
+      - name: Install deps
+        run: |
+          if [ -f pnpm-workspace.yaml ]; then
+            pnpm install --frozen-lockfile
+          else
+            echo "TODO(F0): pnpm-workspace.yaml henüz yok — frontend stub."
+            exit 0
+          fi
+
+      - name: ESLint
+        run: |
+          if [ -f pnpm-workspace.yaml ]; then
+            pnpm -r lint || echo "TODO(F0): lint script eklenince fail'e çevir."
+          fi
+
+      - name: TypeScript typecheck
+        run: |
+          if [ -f pnpm-workspace.yaml ]; then
+            pnpm -r typecheck || echo "TODO(F0): typecheck script eklenince fail'e çevir."
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Supabase — db diff / migration lint
+  #   Şema değişikliği YALNIZ supabase/migrations/ üzerinden (03 §8.3).
+  #   db diff boş çıkmalı: migration'a yansımamış local değişiklik = fail.
+  # ---------------------------------------------------------------------------
+  supabase-db:
+    name: supabase (db diff + lint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: DB diff / lint
+        run: |
+          if [ -d supabase/migrations ]; then
+            # Local Supabase'i başlat, migration'ları uygula, diff'in boş olduğunu doğrula.
+            # supabase start
+            # supabase db lint
+            # supabase db diff --schema app,money,audit,geo  # boş olmalı
+            echo "TODO(F0): supabase start + db lint + db diff (app/money/audit/geo) etkinleştir."
+          else
+            echo "TODO(F0): supabase/migrations henüz yok — stub."
+          fi
+
+  # ---------------------------------------------------------------------------
+  # OpenAPI → TS drift kontrolü
+  #   FastAPI OpenAPI → openapi-typescript → packages/types.
+  #   Codegen çıktısı commit'lenenden farklıysa = sözleşme sürüklenmesi = fail.
+  # ---------------------------------------------------------------------------
+  openapi-drift:
+    name: openapi -> ts drift
+    runs-on: ubuntu-latest
+    needs: [backend]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Generate OpenAPI schema + TS types, assert no drift
+        run: |
+          if [ -d backend/app ] && [ -d packages/types ]; then
+            # 1) FastAPI'den OpenAPI JSON üret (uygulamayı ayağa kaldırmadan):
+            #    python -m app.cli export-openapi > openapi.json
+            # 2) TS tipleri üret:
+            #    npx openapi-typescript openapi.json -o packages/types/src/api.gen.ts
+            # 3) git diff boş olmalı; değilse codegen çalıştırılmamış = drift:
+            #    git diff --exit-code packages/types/src/api.gen.ts
+            echo "TODO(F0): export-openapi + openapi-typescript + git diff --exit-code etkinleştir."
+          else
+            echo "TODO(F0): backend/app veya packages/types henüz yok — drift stub."
+          fi
