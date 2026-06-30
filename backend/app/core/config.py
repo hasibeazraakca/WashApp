@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from decimal import Decimal
 from functools import lru_cache
-from typing import Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -24,9 +23,20 @@ class Settings(BaseSettings):
     )
 
     # --- Ortam ---
-    app_env: Literal["dev", "staging", "prod"] = "dev"
+    # Render env'inde "production" yazilabilir; normalize ederiz (prod/staging/dev).
+    app_env: str = "dev"
     log_level: str = "INFO"
     sentry_dsn: str | None = None
+
+    @field_validator("app_env", mode="before")
+    @classmethod
+    def _normalize_env(cls, v: str) -> str:
+        alias = {
+            "production": "prod", "prod": "prod", "live": "prod",
+            "staging": "staging", "stage": "staging",
+            "development": "dev", "develop": "dev", "dev": "dev", "test": "dev", "": "dev",
+        }
+        return alias.get(str(v).strip().lower(), "dev")
 
     # --- Supabase ---
     supabase_url: str = "http://localhost:54321"
