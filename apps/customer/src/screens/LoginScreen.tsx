@@ -1,8 +1,10 @@
 /** Giris — premium hero + "3 Kalkan" guven seridi + ikonlu input. Seed hesap on-dolu. */
 import React, { useState } from "react";
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,8 +16,9 @@ import { Button, COLORS, Icon, RADIUS, SPACING, TrustStrip, TYPE } from "../ui/t
 import { useAuth } from "../state/auth";
 
 export function LoginScreen() {
-  const { signIn } = useAuth();
+  const { signIn, signUp } = useAuth();
   const insets = useSafeAreaInsets();
+  const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("washapp.musteri@example.com");
   const [password, setPassword] = useState("Test1234!");
   const [show, setShow] = useState(false);
@@ -23,13 +26,27 @@ export function LoginScreen() {
   const [err, setErr] = useState<string | null>(null);
   const [focus, setFocus] = useState<string | null>(null);
 
-  async function onLogin() {
+  const isRegister = mode === "register";
+
+  async function onSubmit() {
     setErr(null);
     setLoading(true);
     try {
-      await signIn(email.trim(), password);
+      if (isRegister) {
+        const { needsEmailConfirm } = await signUp(email.trim(), password);
+        if (needsEmailConfirm) {
+          Alert.alert(
+            "E-postanı doğrula",
+            "Hesabın oluşturuldu. Gelen kutundaki doğrulama bağlantısına tıkladıktan sonra giriş yapabilirsin.",
+          );
+          setMode("login");
+        }
+        // Oturum açıldıysa AuthProvider onboarding'e yönlendirir.
+      } else {
+        await signIn(email.trim(), password);
+      }
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Giriş başarısız");
+      setErr(e instanceof Error ? e.message : isRegister ? "Kayıt başarısız" : "Giriş başarısız");
     } finally {
       setLoading(false);
     }
@@ -46,7 +63,7 @@ export function LoginScreen() {
           </View>
           <Text style={st.logo}>WashApp</Text>
         </View>
-        <Text style={st.tag}>Kapıda mobil oto yıkama — kanıtlı, güvenli, garantili.</Text>
+        <Text style={st.tag}>Kapıda araç bakımı — yıkama, lastik, yağ. Kanıtlı, güvenli, garantili.</Text>
 
         <View style={{ marginTop: SPACING.xl, marginBottom: SPACING.lg }}>
           <TrustStrip />
@@ -94,8 +111,22 @@ export function LoginScreen() {
             </View>
           )}
 
-          <Button title="Giriş Yap" icon="arrow-right" onPress={onLogin} loading={loading} style={{ marginTop: SPACING.lg }} />
-          <Text style={st.hint}>Demo hesabı ön-dolu · Backend canlı (Frankfurt/AB · KVKK)</Text>
+          <Button
+            title={isRegister ? "Kayıt Ol" : "Giriş Yap"}
+            icon={isRegister ? "user-plus" : "arrow-right"}
+            onPress={onSubmit}
+            loading={loading}
+            style={{ marginTop: SPACING.lg }}
+          />
+
+          <Pressable onPress={() => { setErr(null); setMode(isRegister ? "login" : "register"); }} style={st.switchRow} hitSlop={8}>
+            <Text style={st.switchText}>
+              {isRegister ? "Zaten hesabın var mı? " : "Hesabın yok mu? "}
+              <Text style={st.switchLink}>{isRegister ? "Giriş yap" : "Kayıt ol"}</Text>
+            </Text>
+          </Pressable>
+
+          <Text style={st.hint}>Backend canlı (Frankfurt/AB · KVKK)</Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -113,5 +144,8 @@ const st = StyleSheet.create({
   inputText: { flex: 1, fontSize: 16, color: COLORS.ink, paddingVertical: 14 },
   errBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: COLORS.dangerSoft, borderRadius: RADIUS.sm, padding: 10, marginTop: 12 },
   errText: { flex: 1, color: COLORS.danger, fontSize: 13, fontWeight: "500" },
+  switchRow: { alignItems: "center", marginTop: 16 },
+  switchText: { fontSize: 14, color: COLORS.muted, fontWeight: "500" },
+  switchLink: { color: COLORS.brand, fontWeight: "800" },
   hint: { ...TYPE.caption, textAlign: "center", marginTop: 16 },
 });

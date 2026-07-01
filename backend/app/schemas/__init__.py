@@ -117,6 +117,9 @@ class OrderCreate(CamelModel):
     plaza_id: UUID
     kat_park_no: str | None = None
     paket: str = Field(..., examples=["dis_hizli", "standart", "premium"])
+    # Katalog hizmeti (0004): verilirse fiyat katalogdan turetilir, paket = hizmet.kod.
+    # Yalniz randevu_modu=false (foto+escrow) hizmetler bu akistan gecer.
+    hizmet_id: UUID | None = None
     konum: GeoPoint
     zaman_penceresi: datetime | None = None
     odeme_yontemi: str | None = None  # kayitli kart token / psp ref
@@ -348,6 +351,166 @@ class WalletSummary(CamelModel):
     hizmet_veren_id: UUID
     bakiye: Decimal
     para_birimi: str = "TRY"
+
+
+# ---------------------------------------------------------------------------
+# Kampanyalar (reklam/sponsor — ana ekran banner)
+# ---------------------------------------------------------------------------
+class Campaign(CamelModel):
+    """Kampanya kaydi (0003_campaigns.sql). tiklama_sayisi denormalize sayac."""
+
+    id: UUID
+    baslik: str
+    aciklama: str | None = None
+    gorsel_url: str
+    hizmet_veren_id: UUID | None = None
+    sponsor_ad: str | None = None
+    hedef_url: str | None = None
+    aktif: bool = True
+    siralama: int = 0
+    tiklama_sayisi: int = 0
+    created_at: datetime | None = None
+
+
+class CampaignCreate(CamelModel):
+    """POST /campaigns (admin) — yeni kampanya olustur."""
+
+    baslik: str = Field(..., min_length=1, max_length=200)
+    gorsel_url: str = Field(..., min_length=1)
+    aciklama: str | None = None
+    hizmet_veren_id: UUID | None = None
+    sponsor_ad: str | None = None
+    hedef_url: str | None = None
+    siralama: int = 0
+    baslangic: datetime | None = None
+    bitis: datetime | None = None
+
+
+class CampaignClickResponse(CamelModel):
+    """POST /campaigns/{id}/click — tiklama kaydedildi + guncel sayac."""
+
+    kampanya_id: UUID
+    tiklama_sayisi: int
+
+
+# ---------------------------------------------------------------------------
+# Hizmet katalogu (yikama disi: yag/lastik/bakim/ic temizlik) — 0004_services.sql
+# ---------------------------------------------------------------------------
+class ServiceCategory(CamelModel):
+    id: UUID
+    kod: str
+    ad: str
+    ikon: str = "grid"
+    sira: int = 0
+    aktif: bool = True
+
+
+class Service(CamelModel):
+    id: UUID
+    kategori_id: UUID
+    kod: str
+    ad: str
+    aciklama: str | None = None
+    taban_fiyat: Decimal
+    sure_dk: int | None = None
+    ikon: str = "tool"
+    foto_kanit_gerekli: bool = True
+    randevu_modu: bool = False
+    suv_ek: bool = True
+    sira: int = 0
+    aktif: bool = True
+
+
+class ServiceRequestCreate(CamelModel):
+    """POST /service-requests — randevu_modu hizmet talebi (fotosuz akis)."""
+
+    hizmet_id: UUID
+    arac_id: UUID | None = None
+    plaza_id: UUID | None = None
+    kat_park_no: str | None = None
+    notlar: str | None = None
+    tercih_zaman: datetime | None = None
+    konum: GeoPoint | None = None
+
+
+class ServiceRequest(CamelModel):
+    id: UUID
+    hizmet_id: UUID
+    arac_id: UUID | None = None
+    durum: str
+    tahmini_fiyat: Decimal | None = None
+    tercih_zaman: datetime | None = None
+    created_at: datetime | None = None
+
+
+class ServiceRequestDetail(CamelModel):
+    """Provider is havuzu/detay — zengin talep gorunumu (join'li)."""
+
+    id: UUID
+    hizmet_id: UUID
+    hizmet_ad: str | None = None
+    kategori_ad: str | None = None
+    arac_id: UUID | None = None
+    plaka: str | None = None
+    arac_tipi: str | None = None
+    plaza_id: UUID | None = None
+    plaza_ad: str | None = None
+    kat_park_no: str | None = None
+    notlar: str | None = None
+    tercih_zaman: datetime | None = None
+    tahmini_fiyat: Decimal | None = None
+    fiyat_teklifi: Decimal | None = None
+    durum: str
+    hizmet_veren_id: UUID | None = None
+    created_at: datetime | None = None
+
+
+class ServiceRequestQuote(CamelModel):
+    """POST /services/requests/{id}/quote — provider fiyat verir."""
+
+    fiyat: Decimal = Field(..., gt=0)
+
+
+class ServiceRequestStatusUpdate(CamelModel):
+    """POST /services/requests/{id}/status — provider durum ilerletir."""
+
+    durum: str = Field(..., examples=["planlandi", "yolda", "tamamlandi", "iptal"])
+
+
+class OrderJob(CamelModel):
+    """Provider is havuzu — atanmamis/atanmis siparis ozeti (yikama akisi)."""
+
+    order_id: UUID
+    paket: str
+    plaka: str | None = None
+    arac_tipi: str | None = None
+    plaza_id: UUID | None = None
+    plaza_ad: str | None = None
+    kat_park_no: str | None = None
+    gmv: Decimal
+    hizmet_veren_eline: Decimal | None = None
+    status: OrderStatus
+    created_at: datetime | None = None
+
+
+class MediaUploadUrlResponse(CamelModel):
+    upload_url: str
+    storage_path: str
+    expires_in: int
+
+
+class MediaConfirmRequest(CamelModel):
+    storage_path: str
+    asama: str | None = None
+    aciklama: str | None = None
+
+
+class MediaItem(CamelModel):
+    id: UUID
+    signed_url: str
+    asama: str | None = None
+    aciklama: str | None = None
+    created_at: datetime | None = None
 
 
 # Forward ref cozumleme

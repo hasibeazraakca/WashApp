@@ -22,10 +22,24 @@
       "permissions": [
         "CAMERA",
         "ACCESS_FINE_LOCATION",
-        "ACCESS_BACKGROUND_LOCATION"
+        "ACCESS_COARSE_LOCATION"
       ]
     },
-    "plugins": ["expo-dev-client"],
+    "plugins": [
+      "expo-dev-client",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Öncesi/sonrası kanıt fotoğrafları yalnızca uygulama içi canlı kamerayla çekilir."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Varış geofence doğrulaması ve iş eşleştirmesi için konumunuz kullanılır."
+        }
+      ]
+    ],
     "extra": {
       "eas": { "projectId": "TODO-eas-project-id-provider" }
     }

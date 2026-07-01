@@ -3,8 +3,8 @@
  * Konum demo icin Maslak (pilot geofence ici); gercekte cihaz GPS'i (Faz-2).
  */
 import React, { useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { useNavigation, type NavigationProp } from "@react-navigation/native";
+import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COMMISSION_RATE, PROTECTION_FUND_TRY, SUV_SURCHARGE_RATE } from "@washapp/config";
 import type { OrderPackage, Plaza, Vehicle } from "@washapp/types";
@@ -23,9 +23,14 @@ const MASLAK = { lat: 41.079, lon: 29.011 };
 
 export function NewOrderScreen() {
   const nav = useNavigation<NavigationProp<CustomerStackParamList>>();
+  const { params } = useRoute<RouteProp<CustomerStackParamList, "NewOrder">>();
   const { session } = useAuth();
   const insets = useSafeAreaInsets();
   const userId = session?.user.id ?? "";
+
+  // Katalogtan bir hizmet secilerek gelindiyse paket secici yerine sabit hizmet.
+  const hizmetId = params?.hizmetId;
+  const hizmetBase = params?.tabanFiyat;
 
   const [plazalar, setPlazalar] = useState<Plaza[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -52,11 +57,11 @@ export function NewOrderScreen() {
   const selectedVehicle = vehicles.find((v) => v.id === vehicleId);
   const fiyat = useMemo(() => {
     const suv = selectedVehicle?.arac_tipi === "suv";
-    const base = PAKETLER.find((p) => p.key === paket)!.base;
+    const base = hizmetBase ?? PAKETLER.find((p) => p.key === paket)!.base;
     const gmv = Math.round(base * (suv ? 1 + SUV_SURCHARGE_RATE : 1) * 100) / 100;
     const komisyon = Math.round(gmv * COMMISSION_RATE * 100) / 100;
     return { gmv, komisyon, fon: PROTECTION_FUND_TRY, bloke: gmv + PROTECTION_FUND_TRY, eline: gmv - komisyon, suv };
-  }, [paket, selectedVehicle]);
+  }, [paket, selectedVehicle, hizmetBase]);
 
   async function onAddVehicle() {
     if (!newPlaka.trim()) return;
@@ -73,7 +78,7 @@ export function NewOrderScreen() {
     setBusy(true);
     try {
       const res = await api.createOrder({
-        arac_id: vehicleId, plaza_id: plazaId, paket, konum: MASLAK,
+        arac_id: vehicleId, plaza_id: plazaId, paket, hizmet_id: hizmetId, konum: MASLAK,
         kat_park_no: katPark || undefined, zaman_penceresi: new Date().toISOString(),
         odeme_yontemi: "-", subscription_kullan: false,
       } as never);
@@ -90,23 +95,41 @@ export function NewOrderScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
       <ScrollView contentContainerStyle={{ padding: SPACING.lg, paddingBottom: 24 }}>
-        {section("package", "Paket seç")}
-        {PAKETLER.map((p) => {
-          const on = paket === p.key;
-          return (
-            <Card key={p.key} onPress={() => setPaket(p.key)} selected={on} style={{ marginBottom: SPACING.sm }}>
+        {hizmetId ? (
+          <>
+            {section("package", "Hizmet")}
+            <Card selected style={{ marginBottom: SPACING.sm }}>
               <View style={st.paketRow}>
-                <IconChip name={p.icon} tone={on ? "brand" : "brand"} />
+                <IconChip name="check-circle" tone="brand" />
                 <View style={{ flex: 1 }}>
-                  <Text style={TYPE.h2}>{p.ad}</Text>
-                  <Text style={TYPE.caption}>{p.aciklama}</Text>
+                  <Text style={TYPE.h2}>{params?.hizmetAd ?? "Seçilen hizmet"}</Text>
+                  <Text style={TYPE.caption}>Foto‑kanıtlı · escrow korumalı</Text>
                 </View>
-                <Text style={[st.paketPrice, on && { color: COLORS.brand }]}>{p.base}₺</Text>
-                <Icon name={on ? "check-circle" : "circle"} size={22} color={on ? COLORS.brand : COLORS.border} />
+                <Text style={[st.paketPrice, { color: COLORS.brand }]}>{Number(hizmetBase).toFixed(0)}₺</Text>
               </View>
             </Card>
-          );
-        })}
+          </>
+        ) : (
+          <>
+            {section("package", "Paket seç")}
+            {PAKETLER.map((p) => {
+              const on = paket === p.key;
+              return (
+                <Card key={p.key} onPress={() => setPaket(p.key)} selected={on} style={{ marginBottom: SPACING.sm }}>
+                  <View style={st.paketRow}>
+                    <IconChip name={p.icon} tone={on ? "brand" : "brand"} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={TYPE.h2}>{p.ad}</Text>
+                      <Text style={TYPE.caption}>{p.aciklama}</Text>
+                    </View>
+                    <Text style={[st.paketPrice, on && { color: COLORS.brand }]}>{p.base}₺</Text>
+                    <Icon name={on ? "check-circle" : "circle"} size={22} color={on ? COLORS.brand : COLORS.border} />
+                  </View>
+                </Card>
+              );
+            })}
+          </>
+        )}
 
         {section("truck", "Araç")}
         {vehicles.map((v) => (

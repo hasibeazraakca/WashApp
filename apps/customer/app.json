@@ -7,19 +7,32 @@
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
-    "platforms": ["ios", "android"],
+    "platforms": ["ios", "android", "web"],
     "ios": {
       "bundleIdentifier": "com.washapp.customer",
       "supportsTablet": false,
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Siparis konumunuzu plaza geofence icinde dogrulamak icin kullanilir."
+        "NSLocationWhenInUseUsageDescription": "Siparişinizi doğru adreste ve pilot hizmet bölgesi içinde doğrulamak, size en yakın hizmet vereni eşleştirmek için konumunuz kullanılır."
       }
     },
     "android": {
       "package": "com.washapp.customer",
-      "permissions": ["ACCESS_FINE_LOCATION"]
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "POST_NOTIFICATIONS"
+      ]
     },
-    "plugins": ["expo-dev-client"],
+    "plugins": [
+      "expo-dev-client",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Siparişinizi doğru adreste doğrulamak ve size en yakın hizmet vereni eşleştirmek için konumunuz kullanılır."
+        }
+      ],
+      "expo-notifications"
+    ],
     "extra": {
       "eas": { "projectId": "TODO-eas-project-id-customer" }
     }

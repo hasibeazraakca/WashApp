@@ -17,6 +17,7 @@ from app import __version__
 from app.core.config import settings
 from app.core.db import close_pool, healthcheck, init_pool
 from app.routers import (
+    campaigns,
     dispatch,
     disputes,
     evidence,
@@ -24,6 +25,7 @@ from app.routers import (
     orders,
     payments,
     providers,
+    services,
     subscriptions,
     webhooks,
 )
@@ -88,6 +90,8 @@ for module in (
     disputes,
     subscriptions,
     providers,
+    campaigns,
+    services,
 ):
     app.include_router(module.router, prefix=API_V1)
 

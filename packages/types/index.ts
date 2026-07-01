@@ -179,6 +179,118 @@ export interface Order {
   updated_at: ISODateTime;
 }
 
+// ---------------------------------------------------------------------------
+// Hizmet katalogu (yikama disi: yag/lastik/bakim/ic temizlik) — 0004_services.sql
+// ---------------------------------------------------------------------------
+
+export interface ServiceCategory {
+  id: UUID;
+  kod: string;
+  ad: string;
+  ikon: string;
+  sira: number;
+  aktif: boolean;
+}
+
+export interface Service {
+  id: UUID;
+  kategori_id: UUID;
+  kod: string;
+  ad: string;
+  aciklama?: string;
+  taban_fiyat: number;
+  sure_dk?: number;
+  ikon: string;
+  /** true -> 3-Kalkan foto kaniti (yikama/detay). */
+  foto_kanit_gerekli: boolean;
+  /** true -> fotosuz "talep/randevu" akisi (yag/lastik/bakim). */
+  randevu_modu: boolean;
+  /** SUV +%15 uygulanir mi. */
+  suv_ek: boolean;
+  sira: number;
+  aktif: boolean;
+}
+
+export interface ServiceRequest {
+  id: UUID;
+  hizmet_id: UUID;
+  arac_id?: UUID;
+  durum: string; // yeni/iletildi/planlandi/tamamlandi/iptal
+  tahmini_fiyat?: number;
+  tercih_zaman?: ISODateTime;
+  created_at: ISODateTime;
+}
+
+export interface ServiceRequestCreate {
+  hizmet_id: UUID;
+  arac_id?: UUID;
+  plaza_id?: UUID;
+  kat_park_no?: string;
+  notlar?: string;
+  tercih_zaman?: ISODateTime;
+  konum?: GeoPoint;
+}
+
+/** Provider iş havuzu/detay — zengin talep görünümü (backend join'li). */
+export interface ServiceRequestDetail {
+  id: UUID;
+  hizmet_id: UUID;
+  hizmet_ad?: string;
+  kategori_ad?: string;
+  arac_id?: UUID;
+  plaka?: string;
+  arac_tipi?: string;
+  plaza_id?: UUID;
+  plaza_ad?: string;
+  kat_park_no?: string;
+  notlar?: string;
+  tercih_zaman?: ISODateTime;
+  tahmini_fiyat?: number;
+  fiyat_teklifi?: number;
+  durum: string; // yeni/uslenildi/teklif_verildi/planlandi/yolda/tamamlandi/iptal
+  hizmet_veren_id?: UUID;
+  created_at?: ISODateTime;
+}
+
+/** Provider iş havuzu — sipariş (yıkama) özeti. */
+export interface OrderJob {
+  order_id: UUID;
+  paket: string;
+  plaka?: string;
+  arac_tipi?: string;
+  plaza_id?: UUID;
+  plaza_ad?: string;
+  kat_park_no?: string;
+  gmv: number;
+  hizmet_veren_eline?: number;
+  status: OrderStatus;
+  created_at?: ISODateTime;
+}
+
+export interface MediaItem {
+  id: UUID;
+  signed_url: string;
+  asama?: string;
+  aciklama?: string;
+  created_at?: ISODateTime;
+}
+
+/** Kampanya (reklam/sponsor banner — ana ekran). docs/02 app.kampanyalar. */
+export interface Campaign {
+  id: UUID;
+  baslik: string;
+  aciklama?: string;
+  gorsel_url: string;
+  /** Hangi arac yikamaya (hizmet verene) ait — opsiyonel. */
+  hizmet_veren_id?: UUID;
+  sponsor_ad?: string;
+  hedef_url?: string;
+  aktif: boolean;
+  siralama: number;
+  tiklama_sayisi: number;
+  created_at: ISODateTime;
+}
+
 export interface PhotoEvidence {
   id: UUID;
   order_id: UUID;
@@ -201,6 +313,8 @@ export interface CreateOrderRequest {
   plaza_id: UUID;
   kat_park_no?: string;
   paket: OrderPackage;
+  /** Katalog hizmeti (0004): verilirse fiyat katalogdan turetilir (randevu_modu=false). */
+  hizmet_id?: UUID;
   konum: GeoPoint;
   zaman_penceresi: ISODateTime;
   odeme_yontemi: string;

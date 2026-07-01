@@ -1,13 +1,13 @@
-/** Ana ekran — selamlama + KVKK + "3 Kalkan" + birincil CTA + siparis listesi. */
+/** Ana ekran — selamlama + KVKK + "3 Kalkan" + kampanyalar + birincil CTA + siparis listesi. */
 import React, { useCallback, useState } from "react";
-import { Alert, FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { Alert, FlatList, Image, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, type NavigationProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import type { Order, Profile } from "@washapp/types";
+import type { Campaign, Order, Profile } from "@washapp/types";
 import { api } from "../lib/api";
-import { listMyOrders } from "../lib/queries";
+import { listCampaigns, listMyOrders } from "../lib/queries";
 import { useAuth } from "../state/auth";
-import { Button, Card, COLORS, Icon, IconChip, RADIUS, SPACING, StatusBadge, TrustStrip, TYPE } from "../ui/theme";
+import { Button, Card, COLORS, Icon, IconChip, RADIUS, SHADOW, SPACING, StatusBadge, TrustStrip, TYPE } from "../ui/theme";
 import type { CustomerStackParamList } from "../navigation/types";
 
 const PAKET_AD: Record<string, string> = { dis_hizli: "Dış Hızlı", standart: "Standart", premium: "Premium Detay" };
@@ -17,10 +17,13 @@ export function HomeScreen({ navigation }: { navigation: NavigationProp<Customer
   const insets = useSafeAreaInsets();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    // Kampanyalar ikincil icerik — hata siparis akisini bloklamasin (sessiz gec).
+    listCampaigns().then(setCampaigns).catch(() => setCampaigns([]));
     try {
       const [me, list] = await Promise.all([api.me(), listMyOrders()]);
       setProfile(me);
@@ -30,6 +33,12 @@ export function HomeScreen({ navigation }: { navigation: NavigationProp<Customer
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  const onCampaignPress = useCallback((c: Campaign) => {
+    // Tiklamayi backend'e bildir (sayac orada artar — altin kural). Sonucu bekleme.
+    api.trackCampaignClick(c.id).catch(() => {});
+    if (c.hedef_url) Linking.openURL(c.hedef_url).catch(() => {});
   }, []);
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
@@ -82,13 +91,32 @@ export function HomeScreen({ navigation }: { navigation: NavigationProp<Customer
           <Card style={st.heroCard}>
             <View style={st.heroRow}>
               <View style={{ flex: 1 }}>
-                <Text style={st.heroTitle}>Aracını yıkat</Text>
-                <Text style={st.heroSub}>Kapına gelsin · 30-45 dk · kanıtlı</Text>
+                <Text style={st.heroTitle}>Aracına hizmet al</Text>
+                <Text style={st.heroSub}>Yıkama · bakım · lastik — kapına gelsin</Text>
               </View>
               <IconChip name="droplet" tone="brand" />
             </View>
-            <Button title="Yeni Sipariş Ver" icon="plus" onPress={() => navigation.navigate("NewOrder")} disabled={!kvkkOk} style={{ marginTop: 14 }} />
+            <Button title="Hizmetlere Göz At" icon="grid" onPress={() => navigation.navigate("Services")} disabled={!kvkkOk} style={{ marginTop: 14 }} />
           </Card>
+
+          {campaigns.length > 0 && (
+            <View style={{ marginTop: SPACING.xl }}>
+              <View style={st.sectionRow}>
+                <Text style={TYPE.h2}>Kampanyalar</Text>
+                <View style={st.tag}><Icon name="tag" size={12} color={COLORS.brand} /><Text style={st.tagText}>Fırsatlar</Text></View>
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ paddingRight: SPACING.lg, gap: SPACING.md }}
+                style={{ marginTop: SPACING.md, marginHorizontal: -SPACING.lg, paddingHorizontal: SPACING.lg }}
+              >
+                {campaigns.map((c) => (
+                  <CampaignCard key={c.id} campaign={c} onPress={() => onCampaignPress(c)} />
+                ))}
+              </ScrollView>
+            </View>
+          )}
 
           <Text style={[TYPE.h2, { marginTop: SPACING.xl, marginBottom: SPACING.md }]}>Siparişlerim</Text>
         </View>
@@ -117,8 +145,37 @@ export function HomeScreen({ navigation }: { navigation: NavigationProp<Customer
   );
 }
 
+/** Kampanya afis karti — gorsel + baslik + sponsor. Tiklaninca sayac artar. */
+function CampaignCard({ campaign, onPress }: { campaign: Campaign; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={({ pressed }) => [st.campCard, pressed && { opacity: 0.9 }]}>
+      <Image source={{ uri: campaign.gorsel_url }} style={st.campImg} resizeMode="cover" />
+      <View style={st.campBody}>
+        {!!campaign.sponsor_ad && (
+          <View style={st.campSponsor}>
+            <Icon name="award" size={11} color={COLORS.brand} />
+            <Text style={st.campSponsorText} numberOfLines={1}>{campaign.sponsor_ad}</Text>
+          </View>
+        )}
+        <Text style={st.campTitle} numberOfLines={2}>{campaign.baslik}</Text>
+        {!!campaign.aciklama && <Text style={st.campDesc} numberOfLines={2}>{campaign.aciklama}</Text>}
+      </View>
+    </Pressable>
+  );
+}
+
 const st = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", gap: 10 },
+  sectionRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  tag: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: COLORS.brandSoft, borderRadius: RADIUS.pill, paddingHorizontal: 10, paddingVertical: 4 },
+  tagText: { fontSize: 11, fontWeight: "700", color: COLORS.brand },
+  campCard: { width: 280, backgroundColor: COLORS.surface, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.border, overflow: "hidden", ...SHADOW },
+  campImg: { width: "100%", height: 130, backgroundColor: COLORS.surfaceAlt },
+  campBody: { padding: SPACING.md },
+  campSponsor: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 4 },
+  campSponsorText: { fontSize: 11, fontWeight: "700", color: COLORS.brand, flex: 1 },
+  campTitle: { fontSize: 15, fontWeight: "800", color: COLORS.ink, letterSpacing: -0.2 },
+  campDesc: { fontSize: 12.5, fontWeight: "500", color: COLORS.muted, marginTop: 3, lineHeight: 17 },
   avatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: COLORS.brand, alignItems: "center", justifyContent: "center" },
   avatarText: { color: COLORS.onBrand, fontSize: 17, fontWeight: "800" },
   kvkkRow: { flexDirection: "row", alignItems: "center", gap: 12 },

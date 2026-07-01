@@ -45,6 +45,18 @@ def paket_gmv(paket: str, arac_tipi: str = "sedan") -> Decimal:
     return _q(taban)
 
 
+def hizmet_gmv(taban_fiyat: Decimal, arac_tipi: str = "sedan", *, suv_ek: bool = True) -> Decimal:
+    """Katalog hizmetinin taban fiyatindan GMV hesapla (0004_services.sql).
+
+    suv_ek=True ve arac SUV ise +%15 uygulanir (yikama/detay). Yag/lastik gibi
+    parca-agirlikli hizmetlerde suv_ek=False (arac tipi fiyati etkilemez).
+    """
+    taban = Decimal(taban_fiyat)
+    if suv_ek and arac_tipi.lower() in SUV_ARAC_TIPLERI:
+        taban = taban * (Decimal("1") + SUV_EK_ORANI)
+    return _q(taban)
+
+
 def compute_snapshot(
     gmv: Decimal,
     *,

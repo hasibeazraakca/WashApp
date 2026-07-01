@@ -28,6 +28,7 @@ from app.schemas import (
     Order,
     OrderCreate,
     OrderCreateResponse,
+    OrderJob,
     StatusTransitionResponse,
 )
 
@@ -125,8 +126,30 @@ async def create_order(
             detail={"error": "kvkk_onay_gerekli", "detay": "Once KVKK aydinlatma onayi verin (PATCH /me)"},
         )
 
-    # 2) Paket + arac dogrula
-    if body.paket not in pricing.PAKET_FIYAT:
+    # 2) Hizmet/paket dogrula
+    #    hizmet_id verildiyse fiyat katalogdan turetilir (randevu_modu=false sart:
+    #    randevu hizmetleri /service-requests akisindan gecer, orders'tan DEGIL).
+    hizmet = None
+    if body.hizmet_id is not None:
+        hizmet = await db.fetchrow(
+            """
+            SELECT id, kod, taban_fiyat, randevu_modu, suv_ek, aktif
+            FROM app.hizmetler WHERE id = $1
+            """,
+            body.hizmet_id,
+        )
+        if hizmet is None or not hizmet["aktif"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"error": "gecersiz_hizmet", "detay": "Hizmet yok veya pasif"},
+            )
+        if hizmet["randevu_modu"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"error": "randevu_hizmeti",
+                        "detay": "Bu hizmet randevu akisindan gecer (POST /service-requests)"},
+            )
+    elif body.paket not in pricing.PAKET_FIYAT:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"error": "gecersiz_paket",
@@ -169,8 +192,17 @@ async def create_order(
             detail={"error": "geofence_disinda", "detay": "Siparis pilot bolge disinda"},
         )
 
-    # 4) Fiyat snapshot (donmus)
-    gmv = pricing.paket_gmv(body.paket, arac["arac_tipi"])
+    # 4) Fiyat snapshot (donmus) — katalog hizmeti varsa taban_fiyat'tan, yoksa paket
+    if hizmet is not None:
+        gmv = pricing.hizmet_gmv(
+            hizmet["taban_fiyat"], arac["arac_tipi"], suv_ek=hizmet["suv_ek"]
+        )
+        paket_kod = hizmet["kod"]
+        hizmet_id = hizmet["id"]
+    else:
+        gmv = pricing.paket_gmv(body.paket, arac["arac_tipi"])
+        paket_kod = body.paket
+        hizmet_id = None
     snap = pricing.compute_snapshot(gmv)
 
     # 5) INSERT + audit (tek transaction)
@@ -178,15 +210,15 @@ async def create_order(
         row = await db.fetchrow(
             """
             INSERT INTO app.orders
-              (musteri_id, arac_id, plaza_id, kat_park_no, paket, arac_tipi,
+              (musteri_id, arac_id, plaza_id, kat_park_no, paket, hizmet_id, arac_tipi,
                gmv, komisyon_orani, koruma_fonu, hizmet_veren_eline, status, konum)
-            VALUES ($1, $2, $3, $4, $5, $6,
-                    $7, $8, $9, $10, 'olusturuldu',
-                    ST_SetSRID(ST_MakePoint($11, $12), 4326)::geography)
+            VALUES ($1, $2, $3, $4, $5, $6, $7,
+                    $8, $9, $10, $11, 'olusturuldu',
+                    ST_SetSRID(ST_MakePoint($12, $13), 4326)::geography)
             RETURNING id, status
             """,
             user.user_id, body.arac_id, body.plaza_id, body.kat_park_no,
-            body.paket, arac["arac_tipi"],
+            paket_kod, hizmet_id, arac["arac_tipi"],
             snap.gmv, snap.komisyon_orani, snap.koruma_fonu, snap.hizmet_veren_eline,
             body.konum.lon, body.konum.lat,
         )
@@ -196,7 +228,7 @@ async def create_order(
             VALUES ('order_created', $1, $2, $3::jsonb)
             """,
             row["id"], user.user_id,
-            json.dumps({"paket": body.paket, "gmv": float(snap.gmv),
+            json.dumps({"paket": paket_kod, "gmv": float(snap.gmv),
                         "plaza_id": str(body.plaza_id)}),
         )
 
@@ -207,6 +239,85 @@ async def create_order(
         escrow=None,  # F2: Iyzico provizyon
         realtime_channel=f"order:{row['id']}",
     )
+
+
+# ---------------------------------------------------------------------------
+# Provider is havuzu — acik siparisler + self-claim
+# ---------------------------------------------------------------------------
+_ORDER_JOB_SELECT = """
+    SELECT o.id AS order_id, o.paket, a.plaka, o.arac_tipi, o.plaza_id,
+           p.ad AS plaza_ad, o.kat_park_no, o.gmv, o.hizmet_veren_eline,
+           o.status, o.created_at
+    FROM app.orders o
+    LEFT JOIN app.araclar a ON a.id = o.arac_id
+    LEFT JOIN app.plazalar p ON p.id = o.plaza_id
+"""
+
+
+@router.get("/open", response_model=list[OrderJob])
+async def list_open_orders(
+    user: CurrentUser = Depends(require_roles(Role.HIZMET_VEREN, Role.DISPATCHER, Role.ADMIN)),
+    db: asyncpg.Connection = Depends(get_db),
+) -> list[OrderJob]:
+    """Atanmamis (olusturuldu) siparis havuzu — provider ustlenebilir (yikama akisi)."""
+    rows = await db.fetch(
+        _ORDER_JOB_SELECT
+        + " WHERE o.status = 'olusturuldu' AND o.hizmet_veren_id IS NULL"
+        + " ORDER BY o.created_at DESC LIMIT 50"
+    )
+    return [OrderJob(**dict(r)) for r in rows]
+
+
+@router.get("/mine", response_model=list[OrderJob])
+async def list_my_jobs(
+    user: CurrentUser = Depends(require_roles(Role.HIZMET_VEREN)),
+    db: asyncpg.Connection = Depends(get_db),
+) -> list[OrderJob]:
+    """Provider'a atanmis aktif siparisler (tamamlandi/iptal haric)."""
+    rows = await db.fetch(
+        _ORDER_JOB_SELECT
+        + " WHERE o.hizmet_veren_id = $1 AND o.status NOT IN ('tamamlandi','iptal')"
+        + " ORDER BY o.created_at DESC LIMIT 50",
+        user.user_id,
+    )
+    return [OrderJob(**dict(r)) for r in rows]
+
+
+@router.post("/{order_id}/claim", response_model=StatusTransitionResponse)
+async def claim_order(
+    order_id: UUID,
+    user: CurrentUser = Depends(require_roles(Role.HIZMET_VEREN)),
+    db: asyncpg.Connection = Depends(get_db),
+) -> StatusTransitionResponse:
+    """Siparisi self-ustlen (olusturuldu -> eslestirildi, hizmet_veren_id=me).
+
+    Yaris-guvenli: yalniz atanmamis 'olusturuldu'. dispatch_mode='self'.
+    Dispatcher atamasindan farkli olarak provider kendi alir (pazaryeri self-servis).
+    """
+    async with db.transaction():
+        row = await db.fetchrow(
+            """
+            UPDATE app.orders
+            SET hizmet_veren_id = $2, dispatch_mode = 'self', status = 'eslestirildi'
+            WHERE id = $1 AND status = 'olusturuldu' AND hizmet_veren_id IS NULL
+            RETURNING id, status
+            """,
+            order_id, user.user_id,
+        )
+        if row is None:
+            cur = await db.fetchval("SELECT status FROM app.orders WHERE id = $1", order_id)
+            if cur is None:
+                raise HTTPException(status_code=404, detail={"error": "siparis_bulunamadi", "detay": "Siparis yok"})
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"error": "alinamaz", "detay": f"Siparis '{cur}' durumunda (atanmamis olmali)"},
+            )
+        await db.execute(
+            "INSERT INTO audit.events (event_type, order_id, actor_id, payload) "
+            "VALUES ('order_matched', $1, $2, $3::jsonb)",
+            order_id, user.user_id, json.dumps({"hizmet_veren_id": user.user_id, "mode": "self"}),
+        )
+    return StatusTransitionResponse(order_id=row["id"], status=row["status"])
 
 
 @router.get("/{order_id}", response_model=Order)

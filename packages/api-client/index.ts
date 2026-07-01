@@ -12,12 +12,18 @@
 
 import type {
   ApiError,
+  Campaign,
   CreateOrderRequest,
   CreateOrderResponse,
   EvidenceUploadUrlRequest,
   EvidenceUploadUrlResponse,
+  MediaItem,
   Order,
+  OrderJob,
   Profile,
+  ServiceRequest,
+  ServiceRequestCreate,
+  ServiceRequestDetail,
   UUID,
 } from "@washapp/types";
 
@@ -151,13 +157,21 @@ export class WashAppApiClient {
     return this.request("/evidence/upload-url", { method: "POST", body });
   }
 
-  /** POST /evidence/confirm — sunucu re-hash dogrula + INSERT. */
+  /** POST /evidence/confirm — sunucu re-hash dogrula + INSERT. gps+cihaz_ts zorunlu. */
   confirmEvidence(body: {
     order_id: UUID;
     evre: string;
     aci: string;
     sha256: string;
-  }): Promise<{ ok: true }> {
+    gps: { lat: number; lon: number; accuracy_m?: number };
+    cihaz_ts: string;
+  }): Promise<{
+    accepted: boolean;
+    evre: string;
+    aci: string;
+    remaining: string[];
+    status: string | null;
+  }> {
     return this.request("/evidence/confirm", { method: "POST", body });
   }
 
@@ -168,6 +182,94 @@ export class WashAppApiClient {
   /** GET /wallet — hizmet veren cuzdan bakiyesi (money mobile kapali, backend ozetler). */
   getWallet(): Promise<{ bakiye: number; para_birimi: string }> {
     return this.request("/wallet");
+  }
+
+  // -------------------------------------------------------------------------
+  // Kampanyalar (reklam/sponsor banner — ana ekran)
+  // -------------------------------------------------------------------------
+
+  /** GET /campaigns — aktif kampanyalar. Mobil bunu Supabase RLS'ten de okuyabilir. */
+  listCampaigns(): Promise<Campaign[]> {
+    return this.request("/campaigns");
+  }
+
+  /** POST /campaigns/{id}/click — tiklama takibi (sayac backend'de artar). */
+  trackCampaignClick(id: UUID): Promise<{ kampanya_id: UUID; tiklama_sayisi: number }> {
+    return this.request(`/campaigns/${id}/click`, { method: "POST" });
+  }
+
+  // -------------------------------------------------------------------------
+  // Hizmet katalogu — randevu talebi (yikama disi: yag/lastik/bakim)
+  // Katalog LISTELEME mobil tarafinda Supabase RLS'ten okunur (bu client degil).
+  // -------------------------------------------------------------------------
+
+  /** POST /services/requests — randevu_modu hizmet talebi olustur (fotosuz akis). */
+  createServiceRequest(body: ServiceRequestCreate, idempotencyKey?: string): Promise<ServiceRequest> {
+    return this.request("/services/requests", { method: "POST", body, idempotencyKey });
+  }
+
+  // -------------------------------------------------------------------------
+  // PROVIDER (hizmet veren) is akisi — havuz / ustlen / fiyat / durum / medya
+  // -------------------------------------------------------------------------
+
+  /** GET /orders/open — atanmamis siparis havuzu (yikama). */
+  listOpenOrders(): Promise<OrderJob[]> {
+    return this.request("/orders/open");
+  }
+
+  /** GET /orders/mine — bana atanmis aktif siparisler. */
+  listMyJobs(): Promise<OrderJob[]> {
+    return this.request("/orders/mine");
+  }
+
+  /** POST /orders/{id}/claim — siparisi self-ustlen (olusturuldu -> eslestirildi). */
+  claimOrder(id: UUID): Promise<{ order_id: UUID; status: string }> {
+    return this.request(`/orders/${id}/claim`, { method: "POST" });
+  }
+
+  /** GET /services/requests/open — acik randevu talepleri havuzu. */
+  listOpenRequests(): Promise<ServiceRequestDetail[]> {
+    return this.request("/services/requests/open");
+  }
+
+  /** GET /services/requests/mine — ustlendigim talepler. */
+  listMyRequests(): Promise<ServiceRequestDetail[]> {
+    return this.request("/services/requests/mine");
+  }
+
+  /** GET /services/requests/{id} — talep detay. */
+  getRequest(id: UUID): Promise<ServiceRequestDetail> {
+    return this.request(`/services/requests/${id}`);
+  }
+
+  /** POST /services/requests/{id}/claim — talebi ustlen. */
+  claimRequest(id: UUID): Promise<ServiceRequestDetail> {
+    return this.request(`/services/requests/${id}/claim`, { method: "POST" });
+  }
+
+  /** POST /services/requests/{id}/quote — fiyat ver. */
+  quoteRequest(id: UUID, fiyat: number): Promise<ServiceRequestDetail> {
+    return this.request(`/services/requests/${id}/quote`, { method: "POST", body: { fiyat } });
+  }
+
+  /** POST /services/requests/{id}/status — durum ilerlet. */
+  updateRequestStatus(id: UUID, durum: string): Promise<ServiceRequestDetail> {
+    return this.request(`/services/requests/${id}/status`, { method: "POST", body: { durum } });
+  }
+
+  /** POST /services/requests/{id}/media/upload-url — talep fotosu imzali yukleme URL'i. */
+  requestMediaUploadUrl(id: UUID): Promise<{ upload_url: string; storage_path: string; expires_in: number }> {
+    return this.request(`/services/requests/${id}/media/upload-url`, { method: "POST" });
+  }
+
+  /** POST /services/requests/{id}/media — yuklenen fotoyu kaydet. */
+  addRequestMedia(id: UUID, body: { storage_path: string; asama?: string; aciklama?: string }): Promise<MediaItem> {
+    return this.request(`/services/requests/${id}/media`, { method: "POST", body });
+  }
+
+  /** GET /services/requests/{id}/media — talep medyasi (imzali URL'ler). */
+  listRequestMedia(id: UUID): Promise<MediaItem[]> {
+    return this.request(`/services/requests/${id}/media`);
   }
 
   // TODO(Faz-3): disputes/resolve, dispatch/candidates, dispatch/assign,
