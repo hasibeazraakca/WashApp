@@ -4,7 +4,9 @@
   "private": true,
   "main": "index.ts",
   "scripts": {
-    "start": "expo start",
+    "start": "expo start --go",
+    "start:go": "expo start --go --lan",
+    "start:tunnel": "expo start --go --tunnel",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "prebuild": "expo prebuild --clean",
@@ -22,7 +24,6 @@
     "@washapp/supabase": "workspace:*",
     "@washapp/types": "workspace:*",
     "expo": "~54.0.0",
-    "expo-dev-client": "~6.0.0",
     "expo-location": "~19.0.8",
     "expo-notifications": "~0.32.17",
     "expo-status-bar": "~3.0.0",
@@ -34,6 +35,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.25.0",
+    "@expo/ngrok": "^4.1.0",
     "@types/react": "~19.1.0",
     "typescript": "~5.9.0"
   }
