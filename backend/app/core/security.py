@@ -91,6 +91,18 @@ def _decode_jwt(token: str) -> dict[str, Any]:
     Oncelik JWKS (RS256/ES256); JWKS yoksa SUPABASE_JWT_SECRET ile HS256 fallback.
     Ikisi de yoksa 503 (auth yapilandirilmadi).
     """
+    # GECICI BYPASS (DEV_NO_AUTH) — JWT imzasi/exp DOGRULANMAZ. JWT secret/JWKS
+    # ayarlanmadan uctan uca demo icin. Token yine gonderilir; sadece claim'ler
+    # (sub/email/role) cozulur. Pilot/prod'da bu bayrak MUTLAKA kapali olmali.
+    if settings.dev_no_auth:
+        logger.warning(
+            "DEV_NO_AUTH aktif — JWT imzasi DOGRULANMIYOR. Yalniz gelistirme/demo icindir!"
+        )
+        return jwt.decode(
+            token,
+            options={"verify_signature": False, "verify_aud": False, "verify_exp": False},
+        )
+
     client = _get_jwk_client()
     if client is None:
         if not settings.supabase_jwt_secret:
@@ -127,6 +139,19 @@ def _decode_jwt(token: str) -> dict[str, Any]:
             detail={"error": "token_suresi_doldu", "detay": "Oturum suresi doldu"},
         ) from exc
     except (jwt.InvalidTokenError, httpx.HTTPError) as exc:
+        # Supabase cogu projede hala HS256 (JWT secret) kullanir; JWKS yalnizca
+        # asimetrik anahtar aciksa gecerli. JWKS basarisizsa secret ile dene.
+        if settings.supabase_jwt_secret:
+            logger.info("JWKS dogrulama basarisiz, HS256 fallback deneniyor: %s", exc)
+            try:
+                return _decode_hs256(token)
+            except jwt.ExpiredSignatureError as hs_exc:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail={"error": "token_suresi_doldu", "detay": "Oturum suresi doldu"},
+                ) from hs_exc
+            except jwt.InvalidTokenError:
+                pass
         logger.warning("JWT dogrulama basarisiz: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

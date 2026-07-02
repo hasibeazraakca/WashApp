@@ -28,6 +28,13 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     sentry_dsn: str | None = None
 
+    # --- GECICI: kimlik dogrulama bypass (SADECE gelistirme/demo) ---
+    # DEV_NO_AUTH=true iken JWT imzasi DOGRULANMAZ (token yine gelir ama imza/exp
+    # kontrol edilmez). JWT secret/JWKS ayarlanmadan uygulamayi uctan uca gezmek
+    # icin. Pilot/prod'da MUTLAKA kapali (false) olmali. Kod silinmeden, tek env
+    # ile geri acilir. Bkz. app/core/security.py::_decode_jwt.
+    dev_no_auth: bool = False
+
     @field_validator("app_env", mode="before")
     @classmethod
     def _normalize_env(cls, v: str) -> str:
